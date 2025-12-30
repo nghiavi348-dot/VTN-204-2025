@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Happy New Year ✨</title>
+
+<style>
+html,body{
+    margin:0;
+    padding:0;
+    overflow:hidden;
+    background:black;
+    font-family:Arial, Helvetica, sans-serif;
+}
+#hint{
+    position:fixed;
+    bottom:10px;
+    width:100%;
+    text-align:center;
+    color:#aaa;
+    font-size:12px;
+    z-index:10;
+}
+</style>
+</head>
+
+<body>
+<div id="hint">👆 Chạm màn hình để bật nhạc</div>
+
+<audio id="music" loop>
+    <source src="music.mp3" type="audio/mp3">
+</audio>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+<script>
+/* ================= SCENE ================= */
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60,innerWidth/innerHeight,1,2000);
+camera.position.z = 420;
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.toneMapping = THREE.ReinhardToneMapping;
+document.body.appendChild(renderer.domElement);
+
+/* ================= BLOOM ================= */
+const composer = new THREE.EffectComposer(renderer);
+composer.addPass(new THREE.RenderPass(scene,camera));
+
+const bloomPass = new THREE.UnrealBloomPass(
+    new THREE.Vector2(innerWidth,innerHeight),
+    1.6,   // strength
+    0.6,   // radius
+    0.05   // threshold
+);
+composer.addPass(bloomPass);
+
+/* ================= RESIZE ================= */
+addEventListener('resize',()=>{
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight);
+    composer.setSize(innerWidth,innerHeight);
+});
+
+/* ================= FIREWORK ================= */
+const fireworks=[];
+function createFirework(){
+    const count=900;
+    const geo=new THREE.BufferGeometry();
+    const pos=new Float32Array(count*3);
+    const vel=[];
+    const cx=(Math.random()-0.5)*300;
+    const cy=Math.random()*200;
+    const cz=(Math.random()-0.5)*300;
+
+    for(let i=0;i<count;i++){
+        pos[i*3]=cx;
+        pos[i*3+1]=cy;
+        pos[i*3+2]=cz;
+        vel.push({
+            x:(Math.random()-0.5)*6,
+            y:(Math.random()-0.5)*6,
+            z:(Math.random()-0.5)*6
+        });
+    }
+    geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    const mat=new THREE.PointsMaterial({
+        size:2,
+        color:new THREE.Color(`hsl(${Math.random()*360},100%,70%)`)
+    });
+    const p=new THREE.Points(geo,mat);
+    p.vel=vel;
+    p.life=120;
+    scene.add(p);
+    fireworks.push(p);
+}
+
+/* ================= GLOW TEXT ================= */
+function textParticles(text){
+    const c=document.createElement('canvas');
+    c.width=800;c.height=300;
+    const ctx=c.getContext('2d');
+    ctx.fillStyle='white';
+    ctx.font='bold 120px Arial';
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.fillText(text,400,150);
+
+    const img=ctx.getImageData(0,0,800,300).data;
+    const pos=[],start=[];
+    for(let y=0;y<300;y+=4){
+        for(let x=0;x<800;x+=4){
+            if(img[(y*800+x)*4+3]>128){
+                pos.push(x-400,y-150,0);
+                start.push(
+                    (Math.random()-0.5)*innerWidth,
+                    (Math.random()-0.5)*innerHeight,
+                    (Math.random()-0.5)*800
+                );
+            }
+        }
+    }
+
+    const geo=new THREE.BufferGeometry();
+    geo.setAttribute('position',new THREE.Float32BufferAttribute(start,3));
+    geo.setAttribute('target',new THREE.Float32BufferAttribute(pos,3));
+
+    const mat=new THREE.PointsMaterial({
+        color:0xfff2cc,
+        size:2,
+        transparent:true
+    });
+
+    const p=new THREE.Points(geo,mat);
+    p.progress=0;
+    scene.add(p);
+    return p;
+}
+
+function animateText(p){
+    p.progress+=0.03;
+    const a=p.geometry.attributes.position.array;
+    const t=p.geometry.attributes.target.array;
+    for(let i=0;i<a.length;i++){
+        a[i]+= (t[i]-a[i])*p.progress;
+    }
+    p.geometry.attributes.position.needsUpdate=true;
+}
+
+/* ================= SEQUENCE ================= */
+const countdown=["5","4","3","2","1","0"];
+const wishes=[
+    "Chúc Mừng Năm Mới",
+    "An Khang Thịnh Vượng",
+    "Vạn Sự Như Ý",
+    "CODE BY VTN"
+];
+
+let cur,index=0,mode="count";
+function next(){
+    if(cur) scene.remove(cur);
+    if(mode==="count"){
+        if(index>=countdown.length){mode="wish";index=0;}
+        else cur=textParticles(countdown[index++]);
+    }
+    if(mode==="wish" && index<wishes.length){
+        cur=textParticles(wishes[index++]);
+    }
+}
+next();
+setInterval(next,2000);
+
+/* ================= MUSIC ================= */
+document.body.onclick=()=>music.play();
+
+/* ================= LOOP ================= */
+function animate(){
+    requestAnimationFrame(animate);
+    if(Math.random()<0.05) createFirework();
+
+    fireworks.forEach((f,i)=>{
+        const p=f.geometry.attributes.position.array;
+        for(let j=0;j<f.vel.length;j++){
+            p[j*3]+=f.vel[j].x;
+            p[j*3+1]+=f.vel[j].y;
+            p[j*3+2]+=f.vel[j].z;
+        }
+        f.geometry.attributes.position.needsUpdate=true;
+        if(--f.life<=0){
+            scene.remove(f);
+            fireworks.splice(i,1);
+        }
+    });
+
+    if(cur) animateText(cur);
+    composer.render();
+}
+animate();
+</script>
+</body>
+</html>
